@@ -16,7 +16,7 @@ data_bank=[]
 starttime = time.clock_gettime(time.CLOCK_PROCESS_CPUTIME_ID)
 rise = g.add_event_detect(22,g.RISING)
 
-def increaserev(channel):
+def increaserev(channel): #Every count increase the variable by one
  global revcount
  revcount +=1
 
@@ -28,15 +28,15 @@ def main():
             global revcount
             global starttime
            
-            if g.event_detected(22):
+            if g.event_detected(22): #Detects pulse and waits to ensure it is a sent pulse and not noise
                 sleep(0.000001)
                 
-                if g.input(22) == 1:
+                if g.input(22) == 1: #If still high, increments counter
                     increaserev(22)
                     
             currenttime = time.clock_gettime(time.CLOCK_PROCESS_CPUTIME_ID)
         
-            if currenttime >= starttime + 5:
+            if currenttime >= starttime + 5: #Every 5 seconds the average is calculated
                 tim += 5
                 #count = revcount/tim #rate = revcount/(time-revcount*pulse width(200um))
                 rate = revcount/(currenttime -revcount*16*10**(-6))
