@@ -5,7 +5,6 @@ import numpy as np
 import csv
 import sys
 
- 
 g.setmode(g.BCM)
 g.setup(22, g.IN, pull_up_down=g.PUD_DOWN)
 
@@ -14,14 +13,12 @@ count = 0
 tim = 0
 rate = 0
 data_bank=[]
-
 starttime = time.clock_gettime(time.CLOCK_PROCESS_CPUTIME_ID)
+rise = g.add_event_detect(22,g.RISING)
 
 def increaserev(channel):
  global revcount
  revcount +=1
- 
-rise = g.add_event_detect(22,g.RISING)
 
 def main():  
     try:
@@ -30,7 +27,7 @@ def main():
             global rate
             global revcount
             global starttime
-            
+           
             if g.event_detected(22):
                 sleep(0.000001)
                 
@@ -51,13 +48,11 @@ def main():
             with open('data_bank.csv', 'w') as csvFile:
                 writer = csv.writer(csvFile)
                 writer.writerow(data_bank)
-            
-        
+                   
     except KeyboardInterrupt:
         csvFile.close()
         pass
-     
-     
+         
 if __name__ == "__main__":
     main()
     
