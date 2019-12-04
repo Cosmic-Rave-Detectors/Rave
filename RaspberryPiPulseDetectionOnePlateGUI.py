@@ -15,7 +15,7 @@ revcount = 0
 ready = False
 datacollect = False
 filename = "DefaultName"
-runtime = 0
+runtime = 5
 count = 0
 tim = 0
 rate = 0
@@ -75,68 +75,88 @@ def Begin_Exp(runtime): #
 def ExpRunning():  #Starts this experiment and opens files
     global ready
     global filename
-    global starttime
+    global intervaltime
     global csvFile
     global datacollect
+    global threadon
+    global threadmade
     if ready:
         csvFile = open('{0}.csv'.format(filename), 'w')
         ready = False
         datacollect = True
-        starttime = time.clock_gettime(time.CLOCK_PROCESS_CPUTIME_ID)
-        print('Experiment started at {0}'.format(starttime))
+        threadon = False
+        threadmade = False
+        intervaltime = time.clock_gettime(time.CLOCK_PROCESS_CPUTIME_ID)
+        print('Experiment started at {0}'.format(intervaltime))
         window.after(0,DataCollection(csvFile))
     
     window.after(1000,ExpRunning)
          
          
     
-def DataCollection(csvFile): #Contains the experimental loop
+def DataCollection(csvFile): #Contains the experimental loop and begins the threading
     global datacollect
     global ready
     global rate
     global data_bank
-    
+    global currenttime
+    global threadon
+    global threadmade
+    global intervaltime
     if datacollect == True:
-        currenttime = time.clock_gettime(time.CLOCK_PROCESS_CPUTIME_ID)
-        
-        def detection():
-            global starttime
+        def detection(): #This is the thread loop that has the experiment loop
+            global intervaltime
             global runtime
             global datacollect
-            global thread
+            global threadon
+            threadon = True
             detect = False
-            while not detect:
-                if g.event_detected(22): #Detects pulse and waits to ensure it is a sent pulse and not noise
+            done = False
+            while not done: #Ensures that it is always looping after the detection of signals
+                while not detect:
+                    if g.event_detected(22): #Detects pulse and waits to ensure it is a sent pulse and not noise
                         sleep(0.000001)               
                         if g.input(22) == 1: #If still high, increments counter
                             detect = True
-                            increaserev(22)                    
-            if currenttime >= starttime + 5: #Every 5 seconds the average is calculated
-                tim += 5
-                rate = revcount/(currenttime -revcount*16*10**(-6))
-                timediff = currenttime - starttime
-                data_bank.append(timediff, rate)
-                starttime = time.clock_gettime(time.CLOCK_PROCESS_CPUTIME_ID)
-                
-                if timediff >= runtime:
-                    datacollect = False
-                    writer = csv.writer(csvFile)
-                    writer.writerows(data_bank)
-                    csvFile.close()
-                    stop()
-                    print('Experiment Completed')
-                    return
-            
-        x = threading.Thread(target=detection)
-        x.start()
-        window.after(0,DataCollection(csvFile))
+                            increaserev(22)
+                    currenttime = time.clock_gettime(time.CLOCK_PROCESS_CPUTIME_ID)
+                    #print('Current time: {0}s, Interval time: {1}'.format(currenttime, intervaltime))
+                detect = False
+                if currenttime >= intervaltime + 5: #Every 5 seconds the average is calculated
+                    print('Current time: {0}s, Interval time: {1}'.format(currenttime, intervaltime))
+                    rate = revcount/(currenttime -revcount*16*10**(-6))
+                    timediff = currenttime - intervaltime
+                    data_bank.append("{0}\n".format(rate))
+                    intervaltime = time.clock_gettime(time.CLOCK_PROCESS_CPUTIME_ID)
+                    
+                    if timediff >= runtime: #Stops experiment once the time taken is larger than the experiment run time specified
+                        datacollect = False
+                        done = True
+                        writer = csv.writer(csvFile)
+                        writer.writerows(data_bank)
+                        csvFile.close()
+                        stop()
+                        print('Count rate over {0} seconds: {1} \nTotal counts: {2}'.format(timediff, rate, revcount))
+                        print('Experiment Completed')
+                        return
+        
+        if threadmade == False: #Ensures only one thread is made
+            x = threading.Thread(target=detection)
+            threadmade = True
+        if threadon == False: #Ensures only one thread is started
+            x.start()
 
 def stop(): #This function switches the program to a "not ready" state
         global ready
         global datacollect
         global csvFile
         global thread
-        thread.join()
+        global done
+        global detect
+        detect = True
+        done = True
+        window.after_cancel(DataCollection)
+        window.after_cancel(ExpRunning)
         if not ready:  #This is called from main function
             datacollect = False
             print('Experiment Stopped')
@@ -146,12 +166,22 @@ def stop(): #This function switches the program to a "not ready" state
             datacollect = False
             print('Experiment Stopped')
     
-    
 
+def properclose():
+    global datacollect
+    global detect
+    global intervaltime
+    window.after_cancel(ExpRunning)
+    window.after_cancel(DataCollection)
+    if datacollect == True:
+        detect = False
+        print('Experiment abruptly halted {0} seconds in !'.format(intervaltime))
+    window.destroy()
 
 window = tk.Tk()
 window.geometry("700x300")
 window.title('Cosmic Rave Detectors')
 Rave = PulseGUI(window)
 window.after(1000, ExpRunning)
+window.protocol('WM_DELETE_WINDOW', properclose)
 window.mainloop()
